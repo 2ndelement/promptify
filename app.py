@@ -35,6 +35,7 @@ except FileNotFoundError:
 redis_client = redis.Redis(
     host=config.database_host, port=config.database_port, db=config.database
 )
+redis_prefix = "Promptify:"
 try:
     redis_client.ping()
 except redis.exceptions.ConnectionError:
@@ -59,11 +60,11 @@ async def wx_login(body: dict = Body(...)):
     session_key = data.get("session_key")
 
     if openid:
-        is_first_login = redis_client.get(openid + ":cnt") is None
+        is_first_login = redis_client.get(redis_prefix + openid + ":cnt") is None
 
         if is_first_login:
             initial_count = config.initial_count
-            redis_client.set(openid + ":cnt", initial_count)
+            redis_client.set(redis_prefix + openid + ":cnt", initial_count)
 
         # 生成JWT Token
         token_data = {"openid": openid}
@@ -99,10 +100,10 @@ async def get_current_user(
 async def conversation(
     body: conversationBody, response: Response, openid: str = Depends(get_current_user)
 ):
-    if redis_client.get(openid + ":cnt") is None:
+    if redis_client.get(redis_prefix + openid + ":cnt") is None:
         raise HTTPException(status_code=401, detail="Usage limit exceeded")
     response.headers["Content-Type"] = "text/event-stream"
-    redis_client.decr(openid + ":cnt")
+    redis_client.decr(redis_prefix + openid + ":cnt")
     return StreamingResponse(
         chatbot.ask_stream(body.prompt, convo_id=body.conversation_id),
         media_type="text/event-stream",
@@ -130,7 +131,7 @@ async def get_prompts(openid: str = Depends(get_current_user)):
 
 @router.get("/cnt")
 async def get_cnt(openid: str = Depends(get_current_user)):
-    return redis_client.get(openid + ":cnt")
+    return redis_client.get(redis_prefix + openid + ":cnt")
 
 
 async def shutdown_event():
