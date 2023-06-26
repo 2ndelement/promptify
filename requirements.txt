@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+redis
+requests
+pyyaml
+pyjwt
+revChatGPT
+loguru
